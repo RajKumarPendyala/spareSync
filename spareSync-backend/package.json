@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/RajKumarPendyala/sparesync-backend.git"
+    "url": "git+https://github.com/RajKumarPendyala/sparesync.git"
   },
   "keywords": [
     "[",
@@ -31,9 +31,9 @@
   "author": "Raj Kumar Pendyala",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/RajKumarPendyala/sparesync-backend/issues"
+    "url": "https://github.com/RajKumarPendyala/sparesync/issues"
   },
-  "homepage": "https://github.com/RajKumarPendyala/sparesync-backend#readme",
+  "homepage": "https://github.com/RajKumarPendyala/sparesync#readme",
   "dependencies": {
     "bcrypt": "^5.1.1",
     "dotenv": "^16.5.0",
