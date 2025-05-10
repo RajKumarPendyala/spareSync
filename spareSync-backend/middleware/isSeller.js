@@ -1,4 +1,4 @@
-const User = require('../models/User');
+const User = require('../app/user/UserModel');
 
 const isSeller = async (req, res, next) => {
   try {

@@ -5,7 +5,6 @@ exports.deleteUploadedFile = (file) => {
   if (!file) return;
 
   const filename = typeof file === 'string' ? path.basename(file) : file.filename;
-  console.log('Uploaded file:', filename);
   const filePath = path.join(__dirname, '..', 'uploads', filename);
 
   fs.unlink(filePath, (err) => {
