@@ -16,7 +16,6 @@ const sparePartSchema = new mongoose.Schema(
     },
     discount: {
       type: mongoose.Types.Decimal128,
-      required: true,
       min: [0, 'discount must be zero or positive']
     },
     quantity: {
@@ -35,7 +34,8 @@ const sparePartSchema = new mongoose.Schema(
       type : String
     },
     brand: {
-      type: String
+      type: String,
+      required: true
     },
     gadgetType: {
       type: String,
@@ -50,6 +50,11 @@ const sparePartSchema = new mongoose.Schema(
     warrentyPeriod: {
       type: Number,
       min: [0, 'Warrenty must be zero or positive']
+    },
+    isDeleted: { 
+      type: Boolean, 
+      default: false, 
+      required: true 
     }
   },
   { timestamps: true}

@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   name: { 
     type: String, 
     required: true
-  },
+  },  
   image: {
     path: {
       type : String
@@ -39,22 +39,19 @@ const userSchema = new mongoose.Schema({
     enum: ['admin', 'seller', 'buyer'],
     required: true 
   },
-  address: [
-    {
-      houseNo: { type: String },
-      street: { type: String },
-      postalCode: {
-        type: String,
-        validate: {
-          validator: (v) => /^[0-9]{4,10}$/.test(v),
-          message: (props) => `${props.value} is not a valid numeric postal code!`
-        }
-      },
-      city: { type: String },
-      state: { type: String },
-      isDefault: { type: Boolean, default: false }
-    }
-  ],
+  address: {
+    houseNo: { type: String },
+    street: { type: String },
+    postalCode: {
+      type: String,
+      validate: {
+        validator: (v) => /^[0-9]{4,10}$/.test(v),
+        message: (props) => `${props.value} is not a valid numeric postal code!`
+      }
+    },
+    city: { type: String },
+    state: { type: String }
+  },
   isDeleted: { 
     type: Boolean, 
     default: false, 

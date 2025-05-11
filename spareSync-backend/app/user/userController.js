@@ -1,10 +1,8 @@
-const User = require('../models/User');
-const Role = require('../models/Role');
-const Country = require('../models/Country');
-const State = require('../models/State');
-const City = require('../models/City');
-const Address = require('../models/Address');
-const { deleteUploadedFile } = require('../utils/fileCleanup');
+const User = require('./UserModel');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET;
+const { deleteUploadedFile } = require('../../utils/fileCleanup');
 
 
 exports.register = async (req, res) => {
@@ -14,204 +12,162 @@ exports.register = async (req, res) => {
       email,
       phoneNumber,
       password,
-      role,
-      street,
-      postalCode,
-      city,
-      state,
-      country
+      role
     } = req.body;
-    const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
-
-    // if (!name || !email || !phoneNumber || !password || !role || !address) {
-    //   return res.status(400).json({ message: 'All fields are required' });
-    // }
 
     const existingUser = await User.findOne({
       $or: [{ email }, { phoneNumber }]
     });
     if (existingUser) {
-      throw new Error('Email or phone number already exists');
+      res.status(400).json({ message: 'Email or phone number already exists' });
     }
 
-    //role
-    let roleDoc = await Role.findOne({ name: role }).select('_id');
-    if(!roleDoc){
-      roleDoc = await new Role({name : role}).save();
-    }
-    if (!roleDoc) {
-      throw new Error('Failed to create or find role document');
-    }
-    const roleId = roleDoc._id;
-    
-    //country
-    let countryDoc = await Country.findOne({ name: country }).select('_id');
-    if(!countryDoc){
-      countryDoc = await new Country({name : country}).save();
-    }
-    if (!countryDoc) {
-      throw new Error('Failed to create or find country document');
-    }
-    const countryId = countryDoc._id;
-
-    //state
-    let stateDoc = await State.findOne({ name: state }).select('_id');
-    if(!stateDoc){
-      stateDoc = await new State({name : state, country: countryId}).save();
-    }
-    if (!stateDoc) {
-      throw new Error('Failed to create or find state document');
-    }
-    const stateId = stateDoc._id;
-
-    //city
-    let cityDoc = await City.findOne({ name: city }).select('_id');
-    if(!cityDoc){
-      cityDoc = await new City({name : city, state: stateId}).save();
-    }
-    if (!cityDoc) {
-      throw new Error('Failed to create or find city document');
-    }
-    const cityId = cityDoc._id;
-
-    //address
-    const AddressDoc = await new Address({street : street, postalCode: postalCode, city : cityId}).save();
-    if (!AddressDoc) {
-      throw new Error('Failed to create address document');
-    }
-    const addressId = AddressDoc._id;
-
-    //user
-    if(imagePath == null){
-      await new User({
-        name,
-        email,
-        phoneNumber,
-        passwordHash : password,
-        role : roleId,
-        address : addressId
-      }).save();
-    }
-    else{
-      await new User({
-        name,
-        image : {
-          path : imagePath
-        },
-        email,
-        phoneNumber,
-        passwordHash : password,
-        role : roleId,
-        address : addressId
-      }).save();
-    }
+    await new User({
+      name,
+      email,
+      phoneNumber,
+      passwordHash : password,
+      role
+    }).save();
     
     res.status(201).json({
       message: 'User registered successfully'
     });
 
   } catch (error) {
-    deleteUploadedFile(req.file);
-    console.log('Uploaded file to delete:', req.file);
     console.error('Register error:', error);
-    res.status(409).json({ message: error.message });
+    res.status(500).json({ message: 'Server error during login.' });
   }
 };
 
 
+exports.login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user || user.isDeleted) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    res.status(200).json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        role: user.role,
+        image: user.image?.path,
+        isVerified: user.isVerified
+      }
+    });
+
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ message: 'Server error during login.' });
+  }
+};
 
 
+exports.getProfile = async (req, res) => {
+  try{
+    const _id = req.user_id;
+    if(_id){
+      const user = await User.findOne({ _id });
+
+      if (!user || user.isDeleted) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+  
+      res.status(200).json({
+        name: user.name,
+        image: user.image?.path,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+        houseNo: user.address.houseNo,
+        street: user.address.street,
+        postalCode: user.address.postalCode,
+        city: user.address.city,
+        state: user.address.state
+      });  
+    }
+  } catch (err) {
+    console.error('Get profile error:', err);
+    res.status(500).json({ message: 'Failed to fetch profile' });
+  }
+}
 
 
+exports.editProfile = async (req, res) => {
+  try{
+    const _id = req.user_id;
+    const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+    const {
+      name,
+      email,
+      phoneNumber,
+      role,
+      houseNo,
+      street,
+      postalCode,
+      city,
+      state
+    } = req.body;
+
+    const updateFields = {};
+
+    if (name) updateFields.name = name;
+    if (imagePath) updateFields.image = { path: imagePath };
+    if (email) updateFields.email = email;
+    if (phoneNumber) updateFields.phoneNumber = phoneNumber;
+    if (role) updateFields.role = role;
+    if (houseNo) updateFields.houseNo = houseNo;
+    if (street) updateFields.street = street;
+    if (postalCode) updateFields.postalCode = postalCode;
+    if (city) updateFields.city = city;
+    if (state) updateFields.state = state;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      _id,
+      { $set: updateFields },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: {
+        name: updatedUser.name,
+        image: updatedUser.image?.path,
+        email: updatedUser.email,
+        phoneNumber: updatedUser.phoneNumber,
+        role: updatedUser.role,
+        houseNo: updatedUser.address.houseNo,
+        street: updatedUser.address.street,
+        postalCode: updatedUser.address.postalCode,
+        city: updatedUser.address.city,
+        state: updatedUser.address.state
+      }
+    });
+  } catch (err) {
+    deleteUploadedFile(req.file);
+    console.error('Update profile error:', err);
+    res.status(500).json({ message: 'Failed to update profile' });
+  }
+};
 
 
-
-
-
-
-
-
-
-
-
-
-
-// // Method to compare hashed password
-// userSchema.methods.comparePassword = function(password) {
-//   return bcrypt.compare(password, this.passwordHash);
-// };
-
-// // Method to generate JWT token
-// userSchema.methods.generateAuthToken = function() {
-//   const payload = { userId: this._id, role: this.role };
-//   return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
-// };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// const User = require('../models/User');
-// const bcrypt = require('bcryptjs');
-// const jwt = require('jsonwebtoken');
-
-// exports.register = async (req, res) => {
-//   try {
-//     const { name, email, password, phone } = req.body;
-//     const existingUser = await User.findOne({ email });
-//     if (existingUser) return res.status(400).json({ message: 'User already exists' });
-
-//     const hashedPassword = await bcrypt.hash(password, 10);
-
-//     const user = new User({ name, email, password: hashedPassword, phone });
-//     await user.save();
-
-//     res.status(201).json({ message: 'User registered successfully' });
-//   } catch (err) {
-//     res.status(500).json({ message: 'Registration failed', error: err.message });
-//   }
-// };
-
-// exports.login = async (req, res) => {
-//   try {
-//     const { email, password } = req.body;
-//     const user = await User.findOne({ email });
-//     if (!user) return res.status(400).json({ message: 'Invalid credentials' });
-
-//     const isMatch = await bcrypt.compare(password, user.password);
-//     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
-
-//     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-
-//     res.json({ token, user: { id: user._id, email: user.email, name: user.name } });
-//   } catch (err) {
-//     res.status(500).json({ message: 'Login failed', error: err.message });
-//   }
-// };
-
-// exports.getUserProfile = async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id).select('-password');
-//     if (!user) return res.status(404).json({ message: 'User not found' });
-
-//     res.json(user);
-//   } catch (err) {
-//     res.status(500).json({ message: 'Failed to fetch profile', error: err.message });
-//   }
-// };
 
 
 

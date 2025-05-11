@@ -4,16 +4,16 @@ const router = express.Router();
 const sparePartController = require('./sparePartController');
 const isSeller = require('../../middleware/isSeller');
 const authMiddleware = require('../../middleware/authMiddleware');
+const upload = require('../../middleware/upload');
 
 
-router.get('/', sparePartController.getAllSparePartsWithFilters);
-router.get('/:id', sparePartController.getSparePartById);
+// router.get('/', sparePartController.getAllSparePartsWithFilters);
 
-router.get('/seller', authMiddleware, isSeller, sparePartController.getSpareParts);
-router.post('/seller', authMiddleware, isSeller, sparePartController.addSparePart);
-router.patch('/seller/:id', authMiddleware, isSeller, sparePartController.updateSparePart);
+// router.get('/seller', authMiddleware, isSeller, sparePartController.getSparePartsWithFilters);
+router.post('/seller', authMiddleware, isSeller, upload.array('images', 5), sparePartController.addSparePart);
+router.patch('/seller', authMiddleware, isSeller, upload.array('images', 5), sparePartController.editSparePart);
 
-router.patch('/admin/:id', authMiddleware, isAdmin, sparePartController.updateSparePart);
+router.patch('/admin', authMiddleware, isAdmin, upload.array('images', 5), sparePartController.editSparePart);
 
 
 module.exports = router;

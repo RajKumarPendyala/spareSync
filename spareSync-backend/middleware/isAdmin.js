@@ -2,8 +2,8 @@ const User = require('../app/user/UserModel');
 
 const isAdmin = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id).populate('role');
-    if (user.role.name === 'admin') {
+    const user = await User.findById(req.user_id);
+    if (user.role === 'admin') {
       return next();
     }
     return res.status(403).json({ message: 'Access denied. Admins only.' });
