@@ -2,7 +2,7 @@ const User = require('../app/user/UserModel');
 
 const isSeller = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user_id);
+    const user = await User.findById(req.user._id);
     if (user.role === 'seller') {
       return next();
     }

@@ -17,7 +17,7 @@ exports.addSparePart = async (req, res) => {
       gadgetType,
       warrentyPeriod
     } = req.body;
-    const addedBy = req.user_id;
+    const addedBy = req.user._id;
     const imagePaths = req.files?.map(file => ({ path: `/uploads/${file.filename}` }));
 
     const addFields = {};
@@ -63,7 +63,8 @@ exports.editSparePart = async (req, res) => {
             color,
             brand,
             gadgetType,
-            warrentyPeriod
+            warrentyPeriod,
+            isDeleted
         } = req.body;
         const imagePaths = req.files?.map(file => ({ path: `/uploads/${file.filename}` }));
 
@@ -81,12 +82,19 @@ exports.editSparePart = async (req, res) => {
         if (gadgetType) updateFields.gadgetType = gadgetType;
         if (warrentyPeriod) updateFields.warrentyPeriod = warrentyPeriod;
         if (imagePaths) updateFields.image = imagePaths;
+        if (isDeleted) updateFields.isDeleted = isDeleted;
 
         const updatedSparePart = await SparePart.findByIdAndUpdate(
             _id,
             { $set: updateFields },
             { new: true, runValidators: true }
         ); 
+
+        if (isDeleted){
+            res.status(200).json({
+                message: 'Spare part deleted successfully'
+            })
+        }
 
         res.status(200).json({
             message: 'Spare part edited successfully',
@@ -113,81 +121,45 @@ exports.editSparePart = async (req, res) => {
 };
 
 
+exports.getSparePartsWithFilters = async (req, res) => {
+    try{
+        const { gadgetType, brand } = req.body;
+        const addedBy = req.user?._id || null;
+        const role = req.user?.role || null;
 
+        let filterSpareParts = {};
+        if (brand) filterSpareParts.brand = brand;
+        if (gadgetType) filterSpareParts.gadgetType = gadgetType;
+        if(role === "seller"){
+            if (addedBy) filterSpareParts.addedBy = addedBy;
+        }
+        filterSpareParts.isDeleted = false;
 
+        const spareParts = await SparePart.find( filterSpareParts );
+        
+        const formattedParts = spareParts.map(spare => ({
+            name: spare.name,
+            description: spare.description,
+            price: spare.price,
+            discount: spare.discount,
+            quantity: spare.quantity,
+            weight: spare.weight,
+            dimension: spare.dimension,
+            color: spare.color,
+            brand: spare.brand,
+            gadgetType: spare.gadgetType,
+            addedBy: spare.addedBy,
+            warrentyPeriod: spare.warrentyPeriod,
+            images: spare.images
+        }));
 
+        res.status(200).json({
+            message: 'Spare parts fetched successfully',
+            SpareParts : formattedParts
+        });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// const SparePart = require('../models/SparePart');
-
-// exports.getAllSpareParts = async (req, res) => {
-//   try {
-//     const parts = await SparePart.find().populate('brand gadgetType manufacturer condition status');
-//     res.json(parts);
-//   } catch (err) {
-//     res.status(500).json({ message: 'Failed to fetch parts', error: err.message });
-//   }
-// };
-
-// exports.getSparePartById = async (req, res) => {
-//   try {
-//     const part = await SparePart.findById(req.params.id).populate('brand gadgetType manufacturer condition status');
-//     if (!part) return res.status(404).json({ message: 'Spare part not found' });
-//     res.json(part);
-//   } catch (err) {
-//     res.status(500).json({ message: 'Failed to fetch part', error: err.message });
-//   }
-// };
-
-// exports.createSparePart = async (req, res) => {
-//   try {
-//     const part = new SparePart(req.body);
-//     await part.save();
-//     res.status(201).json(part);
-//   } catch (err) {
-//     res.status(500).json({ message: 'Failed to create part', error: err.message });
-//   }
-// };
-
-// exports.updateSparePart = async (req, res) => {
-//   try {
-//     const part = await SparePart.findByIdAndUpdate(req.params.id, req.body, { new: true });
-//     if (!part) return res.status(404).json({ message: 'Part not found' });
-//     res.json(part);
-//   } catch (err) {
-//     res.status(500).json({ message: 'Failed to update part', error: err.message });
-//   }
-// };
-
-// exports.deleteSparePart = async (req, res) => {
-//   try {
-//     const part = await SparePart.findByIdAndDelete(req.params.id);
-//     if (!part) return res.status(404).json({ message: 'Part not found' });
-//     res.json({ message: 'Spare part deleted' });
-//   } catch (err) {
-//     res.status(500).json({ message: 'Failed to delete part', error: err.message });
-//   }
-// };
+    }catch (error) {
+        console.error('fetch spare part error:', error);
+        res.status(500).json({ message: 'Failed to fetch spare part.' });
+    }
+}

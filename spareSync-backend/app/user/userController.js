@@ -58,7 +58,7 @@ exports.login = async (req, res) => {
     const token = jwt.sign(
       { userId: user._id, role: user.role },
       JWT_SECRET,
-      { expiresIn: '1d' }
+      { expiresIn: '10d' }
     );
 
     res.status(200).json({
@@ -82,7 +82,7 @@ exports.login = async (req, res) => {
 
 exports.getProfile = async (req, res) => {
   try{
-    const _id = req.user_id;
+    const _id = req.user._id;
     if(_id){
       const user = await User.findOne({ _id });
 
@@ -112,7 +112,7 @@ exports.getProfile = async (req, res) => {
 
 exports.editProfile = async (req, res) => {
   try{
-    const _id = req.user_id;
+    const _id = req.user._id;
     const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
     const {
       name,
