@@ -16,7 +16,7 @@ const orderSchema = new mongoose.Schema(
             required: true,
             min: [0, 'subTotal amount must be zero or positive']
         }
-      },
+      }
     ],
     shipmentStatus: {
       type: String,

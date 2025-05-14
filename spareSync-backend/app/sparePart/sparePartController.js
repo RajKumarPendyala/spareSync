@@ -49,7 +49,7 @@ exports.addSparePart = async (req, res) => {
 };
 
 
-exports.editSparePart = async (req, res) => {
+exports.editSparePartById = async (req, res) => {
     try{
         const {
             _id,
@@ -88,9 +88,9 @@ exports.editSparePart = async (req, res) => {
             _id,
             { $set: updateFields },
             { new: true, runValidators: true }
-        ); 
+        ).select('-_id -addedBy -createdAt -updatedAt -__v'); 
 
-        if (isDeleted){
+        if (updatedSparePart.isDeleted){
             res.status(200).json({
                 message: 'Spare part deleted successfully'
             })
@@ -98,20 +98,7 @@ exports.editSparePart = async (req, res) => {
 
         res.status(200).json({
             message: 'Spare part edited successfully',
-            SparePart : {
-                name : updatedSparePart.name,
-                description : updatedSparePart.description,
-                price : updatedSparePart.price,
-                discount : updatedSparePart.discount,
-                quantity : updatedSparePart.quantity,
-                weight : updatedSparePart.weight,
-                dimension : updatedSparePart.dimension,
-                color : updatedSparePart.color,
-                brand : updatedSparePart.brand,
-                gadgetType : updatedSparePart.gadgetType,
-                warrentyPeriod : updatedSparePart.warrentyPeriod,
-                image : updatedSparePart.imagePaths
-            }
+            SparePart : updatedSparePart
         });
 
     }catch (error) {
@@ -121,13 +108,14 @@ exports.editSparePart = async (req, res) => {
 };
 
 
-exports.getSparePartsWithFilters = async (req, res) => {
+exports.getSparePartsWithFilter = async (req, res) => {
     try{
         const { gadgetType, brand } = req.body;
         const addedBy = req.user?._id || null;
         const role = req.user?.role || null;
 
         let filterSpareParts = {};
+
         if (brand) filterSpareParts.brand = brand;
         if (gadgetType) filterSpareParts.gadgetType = gadgetType;
         if(role === "seller"){
@@ -135,27 +123,11 @@ exports.getSparePartsWithFilters = async (req, res) => {
         }
         filterSpareParts.isDeleted = false;
 
-        const spareParts = await SparePart.find( filterSpareParts );
-        
-        const formattedParts = spareParts.map(spare => ({
-            name: spare.name,
-            description: spare.description,
-            price: spare.price,
-            discount: spare.discount,
-            quantity: spare.quantity,
-            weight: spare.weight,
-            dimension: spare.dimension,
-            color: spare.color,
-            brand: spare.brand,
-            gadgetType: spare.gadgetType,
-            addedBy: spare.addedBy,
-            warrentyPeriod: spare.warrentyPeriod,
-            images: spare.images
-        }));
+        const spareParts = await SparePart.find( filterSpareParts ).select('-createdAt -updatedAt -__v');
 
         res.status(200).json({
             message: 'Spare parts fetched successfully',
-            SpareParts : formattedParts
+            SpareParts : spareParts
         });
 
     }catch (error) {

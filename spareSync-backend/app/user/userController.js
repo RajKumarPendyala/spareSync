@@ -15,20 +15,23 @@ exports.register = async (req, res) => {
       role
     } = req.body;
 
-    const existingUser = await User.findOne({
-      $or: [{ email }, { phoneNumber }]
-    });
+    const existingUser = await User.findOne({ phoneNumber });
     if (existingUser) {
-      res.status(400).json({ message: 'Email or phone number already exists' });
+      res.status(400).json({ message: 'Phone number already exists' });
     }
 
-    await new User({
-      name,
+    const updateFields = {};
+
+    updateFields.name = name;
+    updateFields.phoneNumber = phoneNumber;
+    updateFields.password = password;
+    updateFields.role = role;
+
+    await User.updateOne(
       email,
-      phoneNumber,
-      passwordHash : password,
-      role
-    }).save();
+      { $set: updateFields },
+      { runValidators: true }
+    );
     
     res.status(201).json({
       message: 'User registered successfully'
@@ -45,7 +48,7 @@ exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email }).select('_id name passwordHash role image.path isverified');
     if (!user || user.isDeleted) {
       return res.status(404).json({ message: 'User not found.' });
     }
@@ -64,13 +67,7 @@ exports.login = async (req, res) => {
     res.status(200).json({
       message: 'Login successful',
       token,
-      user: {
-        id: user._id,
-        name: user.name,
-        role: user.role,
-        image: user.image?.path,
-        isVerified: user.isVerified
-      }
+      user
     });
 
   } catch (err) {
@@ -80,27 +77,18 @@ exports.login = async (req, res) => {
 };
 
 
-exports.getProfile = async (req, res) => {
+exports.getProfileById = async (req, res) => {
   try{
     const _id = req.user._id;
     if(_id){
-      const user = await User.findOne({ _id });
+      const user = await User.findOne({ _id }).select('-_id -passwordHash -isVerified -token -resetTokenExpires -createdAt -updatedAt -__v');
 
       if (!user || user.isDeleted) {
         return res.status(404).json({ message: 'User not found.' });
       }
   
       res.status(200).json({
-        name: user.name,
-        image: user.image?.path,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        role: user.role,
-        houseNo: user.address.houseNo,
-        street: user.address.street,
-        postalCode: user.address.postalCode,
-        city: user.address.city,
-        state: user.address.state
+        user
       });  
     }
   } catch (err) {
@@ -110,7 +98,7 @@ exports.getProfile = async (req, res) => {
 }
 
 
-exports.editProfile = async (req, res) => {
+exports.editProfileById = async (req, res) => {
   try{
     const _id = req.user._id;
     const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
@@ -123,7 +111,8 @@ exports.editProfile = async (req, res) => {
       street,
       postalCode,
       city,
-      state
+      state,
+      isDeleted
     } = req.body;
 
     const updateFields = {};
@@ -138,27 +127,23 @@ exports.editProfile = async (req, res) => {
     if (postalCode) updateFields.postalCode = postalCode;
     if (city) updateFields.city = city;
     if (state) updateFields.state = state;
+    if (isDeleted) updateFields.isDeleted = isDeleted;
 
     const updatedUser = await User.findByIdAndUpdate(
       _id,
       { $set: updateFields },
       { new: true, runValidators: true }
-    );
+    ).select('-_id -passwordHash -isVerified -token -resetTokenExpires -createdAt -updatedAt -__v');
+
+    if (updatedUser.isDeleted){
+      res.status(200).json({
+          message: 'Profile deleted successfully'
+      });
+    }
 
     res.status(200).json({
       message: 'Profile updated successfully',
-      user: {
-        name: updatedUser.name,
-        image: updatedUser.image?.path,
-        email: updatedUser.email,
-        phoneNumber: updatedUser.phoneNumber,
-        role: updatedUser.role,
-        houseNo: updatedUser.address.houseNo,
-        street: updatedUser.address.street,
-        postalCode: updatedUser.address.postalCode,
-        city: updatedUser.address.city,
-        state: updatedUser.address.state
-      }
+      user : updatedUser
     });
   } catch (err) {
     deleteUploadedFile(req.file);
@@ -167,6 +152,86 @@ exports.editProfile = async (req, res) => {
   }
 };
 
+
+exports.getUsersWithFilter = async (req, res) => {
+  try {
+    const { role } = req.body;
+
+    const filter = {
+      isDeleted: false 
+    };
+
+    if (role) filter.role = role;
+
+    const users = await User.find(filter).select('-passwordHash -token -resetTokenExpires -__v');
+
+    res.status(200).json({
+      message: 'Users fetched successfully',
+      users : users
+    });
+
+  } catch (err) {
+    console.error('Fetch profile error:', err);
+    res.status(500).json({ message: 'Failed to Fetch profile' });
+  }
+};
+
+
+exports.editUserById = async(req, res) => {
+  try{
+    const {
+      _id,
+      isDeleted
+    } = req.body;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      _id,
+      { $set: { isDeleted : isDeleted} },
+      { new: true, runValidators: true }
+    ).select('-_id -passwordHash -token -resetTokenExpires -__v');
+
+    if (updatedUser.isDeleted){
+      res.status(200).json({
+          message: 'User deleted successfully'
+      });
+    }
+
+    res.status(200).json({
+      message: 'User updated successfully',
+      user : updatedUser
+    });
+
+  } catch (err) {
+    console.error('Update user error:', err);
+    res.status(500).json({ message: 'Failed to update user' });
+  }
+};
+
+
+// exports.sendOtpToEmail = async(req, res) => {
+//   try{
+//     const {email} 
+//   }
+// }
+
+
+
+
+
+    // const existingUser = await User.findOne({
+    //   $or: [{ email }, { phoneNumber }]
+    // });
+    // if (existingUser) {
+    //   res.status(400).json({ message: 'Email or phone number already exists' });
+    // }
+
+// await new User({
+//   name,
+//   email,
+//   phoneNumber,
+//   passwordHash : password,
+//   role
+// }).save();
 
 
 

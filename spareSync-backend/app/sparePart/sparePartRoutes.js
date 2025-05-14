@@ -8,13 +8,13 @@ const authMiddleware = require('../../middleware/authMiddleware');
 const upload = require('../../middleware/upload');
 
 
-router.get('/', sparePartController.getSparePartsWithFilters);
+router.get('/', sparePartController.getSparePartsWithFilter);
 
-router.get('/seller', authMiddleware, isSeller, sparePartController.getSparePartsWithFilters);
+router.get('/seller', authMiddleware, isSeller, sparePartController.getSparePartsWithFilter);
 router.post('/seller', authMiddleware, isSeller, upload.array('images', 5), sparePartController.addSparePart);
-router.patch('/seller', authMiddleware, isSeller, upload.array('images', 5), sparePartController.editSparePart);
+router.patch('/seller', authMiddleware, isSeller, upload.array('images', 5), sparePartController.editSparePartById);
 
-router.patch('/admin', authMiddleware, isAdmin, upload.array('images', 5), sparePartController.editSparePart);
+router.patch('/admin', authMiddleware, isAdmin, upload.array('images', 5), sparePartController.editSparePartById);
 
 
 module.exports = router;

@@ -9,18 +9,16 @@ const upload = require('../../middleware/upload');
 //user
 router.post('/register', userController.register); 
 router.post('/login', userController.login);
-router.get('/profile', authMiddleware, userController.getProfile);
-router.patch('/profile', authMiddleware, upload.single('image'), userController.editProfile);
-// router.patch('/profile/password', authMiddleware, userController.changePassword);
-// router.post('/forgot-password', userController.forgotPassword);
-// router.post('/reset-password', userController.resetPassword);
-// router.get('/verify-email', userController.verifyEmail);
+router.get('/profile', authMiddleware, userController.getProfileById);
+router.patch('/profile', authMiddleware, upload.single('image'), userController.editProfileById);
+// router.post('/forgot-password', userController.sendOtpToEmail);
+// router.post('/reset-password', userController.updateUserPassword);
+// router.post('/change-password', userController.updateUserPassword);
+router.get('/verify-email', userController.sendOtpToEmail);
 
-// //admin
-// router.get('/', authMiddleware, isAdmin, userController.getUsersWithFilters);
-// router.get('/:id', authMiddleware, isAdmin, userController.getUserById);
-// router.patch('/:id', authMiddleware, isAdmin, userController.updateUserById);
-// router.get('/stats', authMiddleware, isAdmin, userController.getPlatformStats);
+//admin
+router.get('/', authMiddleware, isAdmin, userController.getUsersWithFilter);
+router.patch('/', authMiddleware, isAdmin, userController.editUserById);
 
 
 module.exports = router;    
@@ -48,10 +46,13 @@ module.exports = router;
 // login
 // {
 //   "email": "rajesh262001@gmail.com",
-//   "password": "raj2004"
+//   "password": "raj204"
 // }
 
 // {
 //     "email": "mrraj2042@gmail.com",
 //     "password": "raj2004"
 // }
+
+
+// router.get('/stats', authMiddleware, isAdmin, userController.getPlatformStats);
