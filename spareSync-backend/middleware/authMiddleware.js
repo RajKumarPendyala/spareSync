@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const User = require('../app/user/UserModel');
 
 const authMiddleware = async (req, res, next) => {
   let token;
@@ -8,18 +7,17 @@ const authMiddleware = async (req, res, next) => {
       token = req.headers.authorization.split(' ')[1];
       
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
       req.user = {
         "_id" : decoded.userId,
         "role" : decoded.role
       };
 
-      next();
+      return next();
     } catch (error) {
-      console.error('Auth error:', error);
-      res.status(401).json({ message: 'Not authorized, token failed' });
+      next(error);
     }
   }
-
   if (!token) {
     res.status(401).json({ message: 'Not authorized, no token' });
   }
