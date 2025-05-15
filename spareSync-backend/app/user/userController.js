@@ -1,8 +1,11 @@
 const User = require('./UserModel');
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 const { deleteUploadedFile } = require('../../utils/fileCleanup');
+const { emailOTP } = require('../../utils/emailOTP');
+const { verifyOTP } = require('../../utils/verifyOTP');
+const { verifyPassword } = require('../../utils/verifyPassword');
+const userService = require('./userService');
 
 
 exports.register = async (req, res) => {
@@ -15,27 +18,37 @@ exports.register = async (req, res) => {
       role
     } = req.body;
 
-    const existingUser = await User.findOne({ phoneNumber });
+    const existingUser = await userService.findByPhoneNumber( phoneNumber );
     if (existingUser) {
       res.status(400).json({ message: 'Phone number already exists' });
     }
 
     const updateFields = {};
-
     updateFields.name = name;
     updateFields.phoneNumber = phoneNumber;
     updateFields.password = password;
     updateFields.role = role;
 
-    await User.updateOne(
-      email,
-      { $set: updateFields },
+    const filter = {
+      isVerified : true,
+      email : email
+    }
+
+    const removeFields = {
+      resetTokenExpires : "",
+      token : ""
+    }
+
+    const result = await User.updateOne(
+      filter,
+      { 
+        $set: updateFields,
+        $unset: removeFields
+      },
       { runValidators: true }
     );
     
-    res.status(201).json({
-      message: 'User registered successfully'
-    });
+    if(result) res.status(201).json({ message: 'User registered successfully.'});
 
   } catch (error) {
     console.error('Register error:', error);
@@ -53,10 +66,7 @@ exports.login = async (req, res) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
-    if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid credentials.' });
-    }
+    verifyPassword(password, user.passwordHash);
 
     const token = jwt.sign(
       { userId: user._id, role: user.role },
@@ -91,9 +101,10 @@ exports.getProfileById = async (req, res) => {
         user
       });  
     }
+    res.status(404).json({ message: 'User not found.' });
   } catch (err) {
     console.error('Get profile error:', err);
-    res.status(500).json({ message: 'Failed to fetch profile' });
+    res.status(500).json({ message: 'Failed to fetch profile.' });
   }
 }
 
@@ -115,7 +126,7 @@ exports.editProfileById = async (req, res) => {
       isDeleted
     } = req.body;
 
-    const updateFields = {};
+    const updateFields = { isVerified : true };
 
     if (name) updateFields.name = name;
     if (imagePath) updateFields.image = { path: imagePath };
@@ -137,18 +148,18 @@ exports.editProfileById = async (req, res) => {
 
     if (updatedUser.isDeleted){
       res.status(200).json({
-          message: 'Profile deleted successfully'
+          message: 'Profile deleted successfully.'
       });
     }
 
     res.status(200).json({
-      message: 'Profile updated successfully',
+      message: 'Profile updated successfully.',
       user : updatedUser
     });
   } catch (err) {
     deleteUploadedFile(req.file);
     console.error('Update profile error:', err);
-    res.status(500).json({ message: 'Failed to update profile' });
+    res.status(500).json({ message: 'Failed to update profile.' });
   }
 };
 
@@ -158,7 +169,8 @@ exports.getUsersWithFilter = async (req, res) => {
     const { role } = req.body;
 
     const filter = {
-      isDeleted: false 
+      isDeleted: false,
+      isVerified: true
     };
 
     if (role) filter.role = role;
@@ -166,13 +178,13 @@ exports.getUsersWithFilter = async (req, res) => {
     const users = await User.find(filter).select('-passwordHash -token -resetTokenExpires -__v');
 
     res.status(200).json({
-      message: 'Users fetched successfully',
+      message: 'Users fetched successfully.',
       users : users
     });
 
   } catch (err) {
     console.error('Fetch profile error:', err);
-    res.status(500).json({ message: 'Failed to Fetch profile' });
+    res.status(500).json({ message: 'Failed to Fetch.' });
   }
 };
 
@@ -192,52 +204,125 @@ exports.editUserById = async(req, res) => {
 
     if (updatedUser.isDeleted){
       res.status(200).json({
-          message: 'User deleted successfully'
+          message: 'User deleted successfully.'
       });
     }
 
     res.status(200).json({
-      message: 'User updated successfully',
+      message: 'User updated successfully.',
       user : updatedUser
     });
 
   } catch (err) {
     console.error('Update user error:', err);
-    res.status(500).json({ message: 'Failed to update user' });
+    res.status(500).json({ message: 'Failed to update user.' });
   }
 };
 
 
-// exports.sendOtpToEmail = async(req, res) => {
-//   try{
-//     const {email} 
-//   }
-// }
+exports.sendOtpToEmail = async(req, res) => {
+  try{
+    const {email} = req.body;
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser.isVerified) {
+      res.status(400).json({ message: 'Email already exists.' });
+    }
+
+    if (existingUser) await User.deleteOne({ email });
+
+    const otp = await emailOTP(email);
+
+    if(!otp) {
+      res.status(500).json({ message: 'Failed to send OTP.' });
+    }
+
+    await new User({
+      email,
+      token : otp,
+      resetTokenExpires : new Date(Date.now() + 5 * 60 * 1000) 
+    }).save();
+
+    res.status(200).json({ message: 'OTP sent successfully.' });
+  }catch (error) {
+    console.error('Send OTP error:', err);
+    res.status(500).json({ message: 'Failed to send OTP.' });
+  }
+}
+
+exports.updateUserPassword = async(req, res) => {
+  try{
+    const _id = req.user._id;
+    const {
+      email,
+      otp,
+      currentPassword,
+      newPassword
+    } = req.body;
+
+    const user = await User.findOne({ $or: [{ _id }, { email }] }).select('+passwordHash +token +resetTokenExpires');
+
+    if(currentPassword) verifyPassword(currentPassword, user.passwordHash);
+
+    if(otp) verifyOTP(otp, user.token, user.resetTokenExpires);
+    
+    const removeFields = {
+      resetTokenExpires : "",
+      token : ""
+    }
+
+    await User.updateOne(
+      { $or: [{ _id }, { email }] },
+      { 
+        $set: { password : newPassword },
+        $unset : removeFields 
+      },
+      { runValidators: true }
+    );
+
+    res.status(200).json({ message: 'User password updated successfully.' });
+  }catch (error) {
+    console.error('User password update error:', err);
+    res.status(500).json({ message: 'Failed to update user password.' });
+  }
+}
+
+
+exports.verifyEmail = async(req,res) => {
+  try{
+    const {email, otp} = req.body;
+
+    const user = await User.findOne({ email }).select('+token +resetTokenExpires');
+
+    verifyOTP(otp, user.token, user.resetTokenExpires);
+
+    await User.updateOne(
+      email,
+      { $set: { isVerified : true } },
+      { runValidators: true }
+    );
+
+    res.status(201).json({message: 'Email verified successfully.'});
+  }catch (error){
+    console.error('Email verification error:', err);
+    res.status(500).json({ message: 'Failed to verify email.' });
+  }
+}
 
 
 
 
 
-    // const existingUser = await User.findOne({
-    //   $or: [{ email }, { phoneNumber }]
-    // });
-    // if (existingUser) {
-    //   res.status(400).json({ message: 'Email or phone number already exists' });
-    // }
-
-// await new User({
-//   name,
-//   email,
-//   phoneNumber,
-//   passwordHash : password,
-//   role
-// }).save();
 
 
 
 
 
 
+
+
+
+// router.get('/stats', authMiddleware, isAdmin, userController.getPlatformStats);
 
 // const User = require('../models/User');
 // const Order = require('../models/Order');
@@ -311,26 +396,6 @@ exports.editUserById = async(req, res) => {
 //   }
 // };
 
-
-
-
-
-// //===========================================================
-// // const getUsersWithFilters = async (req, res) => {
-// //     const { role, isVerified, isDeleted, email, createdBefore, createdAfter } = req.query;
-  
-// //     let filter = {};
-  
-// //     if (role) filter.role = role;
-// //     if (isVerified !== undefined) filter.isVerified = isVerified === 'true';
-// //     if (isDeleted !== undefined) filter.isDeleted = isDeleted === 'true';
-// //     if (email) filter.email = { $regex: email, $options: 'i' };
-// //     if (createdBefore) filter.createdAt = { ...filter.createdAt, $lte: new Date(createdBefore) };
-// //     if (createdAfter) filter.createdAt = { ...filter.createdAt, $gte: new Date(createdAfter) };
-  
-// //     const users = await User.find(filter).select('-password');
-// //     res.status(200).json(users);
-// //   };
 
 // // ==================================================
 // //{

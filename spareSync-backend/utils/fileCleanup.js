@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-exports.deleteUploadedFile = (file) => {
+exports.deleteUploadedFile = async (file) => {
   if (!file) return;
 
   const filename = typeof file === 'string' ? path.basename(file) : file.filename;

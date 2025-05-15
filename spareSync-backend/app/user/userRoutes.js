@@ -11,10 +11,12 @@ router.post('/register', userController.register);
 router.post('/login', userController.login);
 router.get('/profile', authMiddleware, userController.getProfileById);
 router.patch('/profile', authMiddleware, upload.single('image'), userController.editProfileById);
-// router.post('/forgot-password', userController.sendOtpToEmail);
-// router.post('/reset-password', userController.updateUserPassword);
-// router.post('/change-password', userController.updateUserPassword);
-router.get('/verify-email', userController.sendOtpToEmail);
+router.post('/forgot-password', userController.sendOtpToEmail);
+router.patch('/reset-password', userController.updateUserPassword);
+router.patch('/change-password', authMiddleware, userController.updateUserPassword);
+router.post('/verify-email', userController.verifyEmail);
+router.post('/otp', userController.sendOtpToEmail); //resend
+
 
 //admin
 router.get('/', authMiddleware, isAdmin, userController.getUsersWithFilter);
@@ -53,6 +55,3 @@ module.exports = router;
 //     "email": "mrraj2042@gmail.com",
 //     "password": "raj2004"
 // }
-
-
-// router.get('/stats', authMiddleware, isAdmin, userController.getPlatformStats);

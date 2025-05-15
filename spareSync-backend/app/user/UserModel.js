@@ -63,21 +63,22 @@ const userSchema = new mongoose.Schema({
     required: true
   },
   token: {
-    type : String
+    type : Number
   },
   resetTokenExpires: { 
-    type : Date,
-    default: Date.now, 
-    required: true
+    type : Date
   }
 }, { timestamps: true });
 
 //pre middleware
 userSchema.pre('save', async function (next) {
   if (!this.isModified('passwordHash')) return next(); // Skip if password not changed
+  if (!this.isModified('token')) return next();
 
   const saltRounds = 10;
   this.passwordHash = await bcrypt.hash(this.passwordHash, saltRounds);
+  this.token = await bcrypt.hash(this.token, saltRounds);
+
   next();
 });
 
