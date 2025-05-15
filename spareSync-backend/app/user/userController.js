@@ -1,14 +1,13 @@
-const User = require('./UserModel');
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 const { deleteUploadedFile } = require('../../utils/fileCleanup');
 const { emailOTP } = require('../../utils/emailOTP');
 const { verifyOTP } = require('../../utils/verifyOTP');
 const { verifyPassword } = require('../../utils/verifyPassword');
-const userService = require('./userService');
+const { findByPhoneNumber, updateOne, findByEmail, findById, findByIdAndUpdate, findByRole, deleteOne, createOtpUser, findBy } = require('./userService');
 
 
-exports.register = async (req, res) => {
+exports.register = async (req, res, next) => {
   try {
     const {
       name,
@@ -18,20 +17,16 @@ exports.register = async (req, res) => {
       role
     } = req.body;
 
-    const existingUser = await userService.findByPhoneNumber( phoneNumber );
+    const existingUser = await findByPhoneNumber({ phoneNumber });
     if (existingUser) {
-      res.status(400).json({ message: 'Phone number already exists' });
+      return res.status(400).json({ message: 'Phone number already exists' });
     }
 
-    const updateFields = {};
-    updateFields.name = name;
-    updateFields.phoneNumber = phoneNumber;
-    updateFields.password = password;
-    updateFields.role = role;
+    const updateFields = { name, phoneNumber, password, role};
 
     const filter = {
       isVerified : true,
-      email : email
+      email
     }
 
     const removeFields = {
@@ -39,34 +34,36 @@ exports.register = async (req, res) => {
       token : ""
     }
 
-    const result = await User.updateOne(
+    const result = await updateOne({
       filter,
-      { 
-        $set: updateFields,
-        $unset: removeFields
-      },
-      { runValidators: true }
-    );
+      updateFields,
+      removeFields
+    });
+
+    if (!result) return res.status(500).json({ message: 'User could not be registered. Please try again.'});
     
-    if(result) res.status(201).json({ message: 'User registered successfully.'});
+    return res.status(201).json({ message: 'User registered successfully.'});
 
   } catch (error) {
-    console.error('Register error:', error);
-    res.status(500).json({ message: 'Server error during login.' });
+    next(error);
   }
 };
 
 
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email }).select('_id name passwordHash role image.path isverified');
+    const user = await findByEmail(
+      email,
+      '_id name passwordHash role image.path isverified'
+    );
+    
     if (!user || user.isDeleted) {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    verifyPassword(password, user.passwordHash);
+    await verifyPassword(password, user.passwordHash);
 
     const token = jwt.sign(
       { userId: user._id, role: user.role },
@@ -81,37 +78,40 @@ exports.login = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ message: 'Server error during login.' });
+    next(err);
   }
 };
 
 
-exports.getProfileById = async (req, res) => {
+exports.getProfileById = async (req, res, next) => {
   try{
-    const _id = req.user._id;
-    if(_id){
-      const user = await User.findOne({ _id }).select('-_id -passwordHash -isVerified -token -resetTokenExpires -createdAt -updatedAt -__v');
+    const _id = req.user?._id;
 
-      if (!user || user.isDeleted) {
-        return res.status(404).json({ message: 'User not found.' });
-      }
-  
-      res.status(200).json({
-        user
-      });  
+    if (!_id) {
+      return res.status(401).json({ message: 'Unauthorized: No user ID.' });
     }
-    res.status(404).json({ message: 'User not found.' });
+
+    const user = await findById(
+      _id,
+      '-_id -passwordHash -isVerified -token -resetTokenExpires -createdAt -updatedAt -__v'
+    );
+
+    if (!user || user.isDeleted) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+  
+    res.status(200).json({
+      user
+    });  
   } catch (err) {
-    console.error('Get profile error:', err);
-    res.status(500).json({ message: 'Failed to fetch profile.' });
+    next(err);
   }
 }
 
 
-exports.editProfileById = async (req, res) => {
+exports.editProfileById = async (req, res, next) => {
   try{
-    const _id = req.user._id;
+    const _id = req.user?._id;
     const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
     const {
       name,
@@ -138,17 +138,19 @@ exports.editProfileById = async (req, res) => {
     if (postalCode) updateFields.postalCode = postalCode;
     if (city) updateFields.city = city;
     if (state) updateFields.state = state;
-    if (isDeleted) updateFields.isDeleted = isDeleted;
+    if (isDeleted !== undefined) updateFields.isDeleted = isDeleted;
 
-    const updatedUser = await User.findByIdAndUpdate(
+    const updatedUser = await findByIdAndUpdate(
       _id,
-      { $set: updateFields },
-      { new: true, runValidators: true }
-    ).select('-_id -passwordHash -isVerified -token -resetTokenExpires -createdAt -updatedAt -__v');
+      updateFields,
+      '-_id -passwordHash -isVerified -token -resetTokenExpires -createdAt -updatedAt -__v'
+    );
+
+    if (!updatedUser) return res.status(404).json({ message: 'User not found.' });
 
     if (updatedUser.isDeleted){
-      res.status(200).json({
-          message: 'Profile deleted successfully.'
+      return res.status(410).json({
+          message: 'Profile has been deleted.'
       });
     }
 
@@ -157,14 +159,13 @@ exports.editProfileById = async (req, res) => {
       user : updatedUser
     });
   } catch (err) {
-    deleteUploadedFile(req.file);
-    console.error('Update profile error:', err);
-    res.status(500).json({ message: 'Failed to update profile.' });
+    if(req.file) deleteUploadedFile(req.file);
+    next(err);
   }
 };
 
 
-exports.getUsersWithFilter = async (req, res) => {
+exports.getUsersWithFilter = async (req, res, next) => {
   try {
     const { role } = req.body;
 
@@ -175,7 +176,10 @@ exports.getUsersWithFilter = async (req, res) => {
 
     if (role) filter.role = role;
 
-    const users = await User.find(filter).select('-passwordHash -token -resetTokenExpires -__v');
+    const users = await findByRole(
+      filter,
+      '-passwordHash -token -resetTokenExpires -__v'
+    );
 
     res.status(200).json({
       message: 'Users fetched successfully.',
@@ -183,27 +187,27 @@ exports.getUsersWithFilter = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Fetch profile error:', err);
-    res.status(500).json({ message: 'Failed to Fetch.' });
+    next(err);
   }
 };
 
 
-exports.editUserById = async(req, res) => {
+exports.editUserById = async(req, res, next) => {
   try{
-    const {
-      _id,
-      isDeleted
-    } = req.body;
+    const { _id, isDeleted } = req.body;
 
-    const updatedUser = await User.findByIdAndUpdate(
+    const updatedUser = await findByIdAndUpdate(
       _id,
-      { $set: { isDeleted : isDeleted} },
-      { new: true, runValidators: true }
-    ).select('-_id -passwordHash -token -resetTokenExpires -__v');
+      { isDeleted },
+      '-_id -passwordHash -token -resetTokenExpires -__v'
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
 
     if (updatedUser.isDeleted){
-      res.status(200).json({
+      res.status(410).json({
           message: 'User deleted successfully.'
       });
     }
@@ -214,43 +218,40 @@ exports.editUserById = async(req, res) => {
     });
 
   } catch (err) {
-    console.error('Update user error:', err);
-    res.status(500).json({ message: 'Failed to update user.' });
+    next(err);
   }
 };
 
 
-exports.sendOtpToEmail = async(req, res) => {
+exports.sendOtpToEmail = async(req, res, next) => {
   try{
     const {email} = req.body;
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser.isVerified) {
-      res.status(400).json({ message: 'Email already exists.' });
+    const existingUser = await findByEmail({ email });
+
+    if (existingUser){
+      if (existingUser.isVerified) {
+      return res.status(400).json({ message: 'Email already exists.' });
+      }
+
+      await deleteOne({ email });
     }
-
-    if (existingUser) await User.deleteOne({ email });
-
+    
     const otp = await emailOTP(email);
 
     if(!otp) {
       res.status(500).json({ message: 'Failed to send OTP.' });
     }
 
-    await new User({
-      email,
-      token : otp,
-      resetTokenExpires : new Date(Date.now() + 5 * 60 * 1000) 
-    }).save();
+    await createOtpUser(email, otp);
 
     res.status(200).json({ message: 'OTP sent successfully.' });
   }catch (error) {
-    console.error('Send OTP error:', err);
-    res.status(500).json({ message: 'Failed to send OTP.' });
+    next(err);
   }
 }
 
-exports.updateUserPassword = async(req, res) => {
+exports.updateUserPassword = async(req, res, next) => {
   try{
     const _id = req.user._id;
     const {
@@ -260,7 +261,14 @@ exports.updateUserPassword = async(req, res) => {
       newPassword
     } = req.body;
 
-    const user = await User.findOne({ $or: [{ _id }, { email }] }).select('+passwordHash +token +resetTokenExpires');
+    const user = await findBy(
+      { $or: [{ _id }, { email }] },
+      'passwordHash token resetTokenExpires'
+    );
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
 
     if(currentPassword) verifyPassword(currentPassword, user.passwordHash);
 
@@ -271,41 +279,42 @@ exports.updateUserPassword = async(req, res) => {
       token : ""
     }
 
-    await User.updateOne(
+    await updateOne(
       { $or: [{ _id }, { email }] },
-      { 
-        $set: { password : newPassword },
-        $unset : removeFields 
-      },
-      { runValidators: true }
+      { password : newPassword },
+      removeFields
     );
 
     res.status(200).json({ message: 'User password updated successfully.' });
   }catch (error) {
-    console.error('User password update error:', err);
-    res.status(500).json({ message: 'Failed to update user password.' });
+    next(error);
   }
 }
 
 
-exports.verifyEmail = async(req,res) => {
+exports.verifyEmail = async(req, res, next) => {
   try{
     const {email, otp} = req.body;
 
-    const user = await User.findOne({ email }).select('+token +resetTokenExpires');
+    const user = await findByEmail(
+      { email },
+      'token resetTokenExpires'
+    );
 
-    verifyOTP(otp, user.token, user.resetTokenExpires);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
 
-    await User.updateOne(
+    await verifyOTP(otp, user.token, user.resetTokenExpires);
+
+    await updateOneSet(
       email,
-      { $set: { isVerified : true } },
-      { runValidators: true }
+      { isVerified : true }
     );
 
     res.status(201).json({message: 'Email verified successfully.'});
   }catch (error){
-    console.error('Email verification error:', err);
-    res.status(500).json({ message: 'Failed to verify email.' });
+    next(error);
   }
 }
 
