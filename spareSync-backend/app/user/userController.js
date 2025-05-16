@@ -1,10 +1,10 @@
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
+const bcrypt = require('bcrypt');
 const { deleteUploadedFile } = require('../../utils/fileCleanup');
 const { emailOTP } = require('../../utils/emailOTP');
-const { verifyOTP } = require('../../utils/verifyOTP');
 const { verifyPassword } = require('../../utils/verifyPassword');
-const { findByPhoneNumber, updateOne, findByEmail, findById, findByIdAndUpdate, findByRole, deleteOne, createOtpUser, findBy } = require('./userService');
+const { findByPhoneNumber, updateOne, findByEmail, findById, findByIdAndUpdate, findByRole, deleteOne, createOtpUser, findBy, updateOneSet } = require('./userService');
 
 
 exports.register = async (req, res, next) => {
@@ -17,12 +17,23 @@ exports.register = async (req, res, next) => {
       role
     } = req.body;
 
+    if (!name || !email || !phoneNumber || !password || !role) {
+      return res.status(400).json({ message: 'All fields are required.' });
+    }
+
+    if ( !( role === "buyer" || role === "seller" ) ) {
+      return res.status(400).json({ message: 'Role must be "seller" or "buyer".' });
+    }
+    
     const existingUser = await findByPhoneNumber({ phoneNumber });
     if (existingUser) {
       return res.status(400).json({ message: 'Phone number already exists' });
     }
 
-    const updateFields = { name, phoneNumber, password, role};
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(password, saltRounds);
+
+    const updateFields = { name, phoneNumber, passwordHash, role};
 
     const filter = {
       isVerified : true,
@@ -34,14 +45,13 @@ exports.register = async (req, res, next) => {
       token : ""
     }
 
-    const result = await updateOne({
+    const result = await updateOne(
       filter,
       updateFields,
       removeFields
-    });
+    );
 
     if (!result) return res.status(500).json({ message: 'User could not be registered. Please try again.'});
-    
     return res.status(201).json({ message: 'User registered successfully.'});
 
   } catch (error) {
@@ -55,7 +65,7 @@ exports.login = async (req, res, next) => {
     const { email, password } = req.body;
 
     const user = await findByEmail(
-      email,
+      { email },
       '_id name passwordHash role image.path isverified'
     );
     
@@ -63,7 +73,10 @@ exports.login = async (req, res, next) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    await verifyPassword(password, user.passwordHash);
+    const isMatch = await verifyPassword(password, user.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Invalid credentials.' });
+    }
 
     const token = jwt.sign(
       { userId: user._id, role: user.role },
@@ -71,12 +84,14 @@ exports.login = async (req, res, next) => {
       { expiresIn: '10d' }
     );
 
-    res.status(200).json({
-      message: 'Login successful',
-      token,
-      user
-    });
-
+    if (token){
+      return res.status(200).json({
+        message: 'Login successful',
+        token,
+        user
+      });
+    }
+    return res.status(400).json({message: 'Login failed.'});
   } catch (err) {
     next(err);
   }
@@ -92,7 +107,7 @@ exports.getProfileById = async (req, res, next) => {
     }
 
     const user = await findById(
-      _id,
+      { _id },
       '-_id -passwordHash -isVerified -token -resetTokenExpires -createdAt -updatedAt -__v'
     );
 
@@ -100,7 +115,7 @@ exports.getProfileById = async (req, res, next) => {
       return res.status(404).json({ message: 'User not found.' });
     }
   
-    res.status(200).json({
+    return res.status(200).json({
       user
     });  
   } catch (err) {
@@ -181,11 +196,13 @@ exports.getUsersWithFilter = async (req, res, next) => {
       '-passwordHash -token -resetTokenExpires -__v'
     );
 
-    res.status(200).json({
-      message: 'Users fetched successfully.',
-      users : users
-    });
-
+    if(users){
+      return res.status(200).json({
+        message: 'Users fetched successfully.',
+        users : users
+      });
+    }
+    return res.status(400).json({ message: 'Users failed to fetch.' });
   } catch (err) {
     next(err);
   }
@@ -207,16 +224,15 @@ exports.editUserById = async(req, res, next) => {
     }
 
     if (updatedUser.isDeleted){
-      res.status(410).json({
+      return res.status(410).json({
           message: 'User deleted successfully.'
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: 'User updated successfully.',
       user : updatedUser
     });
-
   } catch (err) {
     next(err);
   }
@@ -243,17 +259,49 @@ exports.sendOtpToEmail = async(req, res, next) => {
       res.status(500).json({ message: 'Failed to send OTP.' });
     }
 
-    await createOtpUser(email, otp);
-
-    res.status(200).json({ message: 'OTP sent successfully.' });
+    const result = await createOtpUser(email, otp);
+    
+    if(result) return res.status(200).json({ message: 'OTP sent successfully.' });
+    return res.status(400).json({ message: 'Failed to sent OTP.' });
   }catch (error) {
     next(err);
   }
 }
 
+
+exports.forgetPasswordOTP = async(req, res, next) => {
+  try{
+    const {email} = req.body;
+
+    const user = await findByEmail({ email });
+
+    if (!user) return res.status(404).json({ message: "Email doesn't exists." });
+    
+    const otp = await emailOTP(email);
+
+    if(!otp) {
+      res.status(500).json({ message: 'Failed to send OTP.' });
+    }
+
+    const result = await updateOneSet(
+      { email }, 
+      { 
+        token : otp,
+        resetTokenExpires: new Date(Date.now() + 5 * 60 * 1000)
+      } 
+    );
+
+    if(result.modifiedCount > 0) return res.status(200).json({ message: 'OTP sent successfully.' });
+    return res.status(400).json({ message: 'Failed to sent OTP.' });
+  }catch (error) {
+    next(err);
+  }
+}
+
+
 exports.updateUserPassword = async(req, res, next) => {
   try{
-    const _id = req.user._id;
+    const _id = req.user?._id;
     const {
       email,
       otp,
@@ -270,22 +318,33 @@ exports.updateUserPassword = async(req, res, next) => {
       return res.status(404).json({ message: 'User not found.' });
     }
 
-    if(currentPassword) verifyPassword(currentPassword, user.passwordHash);
+    if(currentPassword) {
+      const isMatch = verifyPassword(currentPassword, user.passwordHash);
+      if (!isMatch) return res.status(400).json({ message: 'Invalid credentials.' });
+    }
 
-    if(otp) verifyOTP(otp, user.token, user.resetTokenExpires);
-    
+    if(otp){
+      const currentDate = new Date();
+      if ( otp != user.token && user.resetTokenExpires < currentDate) {
+        return res.status(400).json({ message: 'Invalid OTP or OTP expried.' });
+      }
+    }
+
+    const saltRounds = 10;
+    const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
     const removeFields = {
       resetTokenExpires : "",
       token : ""
     }
 
-    await updateOne(
+    const result = await updateOne(
       { $or: [{ _id }, { email }] },
-      { password : newPassword },
+      { passwordHash },
       removeFields
     );
-
-    res.status(200).json({ message: 'User password updated successfully.' });
+    if(result.modifiedCount > 0) return res.status(200).json({ message: 'User password updated successfully.' });
+    return res.status(400).json({ message: 'User password failed to update.' });
   }catch (error) {
     next(error);
   }
@@ -305,14 +364,18 @@ exports.verifyEmail = async(req, res, next) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    await verifyOTP(otp, user.token, user.resetTokenExpires);
+    const currentDate = new Date();
+    if ( otp != user.token && user.resetTokenExpires < currentDate) {
+      return res.status(400).json({ message: 'Invalid OTP or OTP expried.' });
+    }
 
-    await updateOneSet(
-      email,
+    const result = await updateOneSet(
+      {email},
       { isVerified : true }
     );
 
-    res.status(201).json({message: 'Email verified successfully.'});
+    if(result.modifiedCount > 0) return res.status(201).json({message: 'Email verified successfully.'});
+    return res.status(400).json({ message: 'Email verification failed.' });
   }catch (error){
     next(error);
   }

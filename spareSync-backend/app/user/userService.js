@@ -47,4 +47,4 @@ exports.findByPhoneNumber = findBy;
 exports.findByEmail = findBy;
 exports.findById = findBy;
 exports.findByRole = findBy;
-exports.findBy;
+exports.findBy = findBy;

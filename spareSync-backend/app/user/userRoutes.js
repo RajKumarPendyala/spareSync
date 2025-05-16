@@ -7,15 +7,15 @@ const authMiddleware = require('../../middleware/authMiddleware');
 const upload = require('../../middleware/upload');
 
 //user
-router.post('/register', userController.register); 
+router.patch('/register', userController.register); 
 router.post('/login', userController.login);
 router.get('/profile', authMiddleware, userController.getProfileById);
 router.patch('/profile', authMiddleware, upload.single('image'), userController.editProfileById);
-router.post('/forgot-password', userController.sendOtpToEmail);
+router.post('/forgot-password', userController.forgetPasswordOTP);
 router.patch('/reset-password', userController.updateUserPassword);
 router.patch('/change-password', authMiddleware, userController.updateUserPassword);
 router.post('/verify-email', userController.verifyEmail);
-router.post('/otp', userController.sendOtpToEmail); //resend
+router.post('/verify-otp', userController.sendOtpToEmail); //resend
 
 
 //admin

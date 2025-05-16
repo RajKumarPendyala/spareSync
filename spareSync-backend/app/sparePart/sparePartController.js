@@ -1,8 +1,9 @@
 const SparePart = require('./SparePartModel');
 const { deleteUploadedFile } = require('../../utils/fileCleanup');
+const { createSparePart, findByIdAndUpdate, find } = require('./sparePartService');
 
 
-exports.addSparePart = async (req, res) => {
+exports.addSparePart = async (req, res, next) => {
   try {
     const {
       name,
@@ -17,8 +18,8 @@ exports.addSparePart = async (req, res) => {
       gadgetType,
       warrentyPeriod
     } = req.body;
-    const addedBy = req.user._id;
-    const imagePaths = req.files?.map(file => ({ path: `/uploads/${file.filename}` }));
+    const addedBy = req.user?._id;
+    const imagePaths = req.files?.length ? req.files?.map(file => ({ path: `/uploads/${file.filename}` })) : [];
 
     const addFields = {};
 
@@ -34,22 +35,22 @@ exports.addSparePart = async (req, res) => {
     if (gadgetType) addFields.gadgetType = gadgetType;
     if (warrentyPeriod) addFields.warrentyPeriod = warrentyPeriod;
     if (addedBy) addFields.addedBy = addedBy;
-    if (imagePaths) addFields.image = imagePaths;
+    if (imagePaths.length) addFields.images = imagePaths;
 
-    await new SparePart(addFields).save();
+    await  createSparePart(addFields);
     
     res.status(201).json({
       message: 'Adding spare part successfully'
     });
 
   } catch (error) {
-    console.error('Adding spare part error:', error);
-    res.status(500).json({ message: 'Server error during add spare part.' });
+    if(req.file?.length) deleteUploadedFile(req.file);
+    next(error)
   }
 };
 
 
-exports.editSparePartById = async (req, res) => {
+exports.editSparePartById = async (req, res, next) => {
     try{
         const {
             _id,
@@ -81,17 +82,17 @@ exports.editSparePartById = async (req, res) => {
         if (brand) updateFields.brand = brand;
         if (gadgetType) updateFields.gadgetType = gadgetType;
         if (warrentyPeriod) updateFields.warrentyPeriod = warrentyPeriod;
-        if (imagePaths) updateFields.image = imagePaths;
-        if (isDeleted) updateFields.isDeleted = isDeleted;
+        if (imagePaths?.length) updateFields.images = imagePaths;
+        if (isDeleted !== undefined) updateFields.isDeleted = isDeleted;
 
-        const updatedSparePart = await SparePart.findByIdAndUpdate(
+        const updatedSparePart = await findByIdAndUpdate(
             _id,
-            { $set: updateFields },
-            { new: true, runValidators: true }
-        ).select('-_id -addedBy -createdAt -updatedAt -__v'); 
+            updateFields,
+            '-_id -addedBy -createdAt -updatedAt -__v'
+        ); 
 
         if (updatedSparePart.isDeleted){
-            res.status(200).json({
+            return res.status(200).json({
                 message: 'Spare part deleted successfully'
             })
         }
@@ -102,13 +103,13 @@ exports.editSparePartById = async (req, res) => {
         });
 
     }catch (error) {
-        console.error('edit spare part error:', error);
-        res.status(500).json({ message: 'Failed to update spare part.' });
+        if(req.file?.length) deleteUploadedFile(req.file);
+        next(error);
     }
 };
 
 
-exports.getSparePartsWithFilter = async (req, res) => {
+exports.getSparePartsWithFilter = async (req, res, next) => {
     try{
         const { gadgetType, brand } = req.body;
         const addedBy = req.user?._id || null;
@@ -123,7 +124,10 @@ exports.getSparePartsWithFilter = async (req, res) => {
         }
         filterSpareParts.isDeleted = false;
 
-        const spareParts = await SparePart.find( filterSpareParts ).select('-createdAt -updatedAt -__v');
+        const spareParts = await find(
+            filterSpareParts,
+            '-createdAt -updatedAt -__v'
+        );
 
         res.status(200).json({
             message: 'Spare parts fetched successfully',
@@ -131,7 +135,6 @@ exports.getSparePartsWithFilter = async (req, res) => {
         });
 
     }catch (error) {
-        console.error('fetch spare part error:', error);
-        res.status(500).json({ message: 'Failed to fetch spare part.' });
+        next(error);
     }
 }

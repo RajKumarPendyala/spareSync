@@ -3,8 +3,7 @@ const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
   name: { 
-    type: String, 
-    required: true
+    type: String
   },  
   image: {
     path: {
@@ -24,20 +23,17 @@ const userSchema = new mongoose.Schema({
   phoneNumber: { 
     type: Number, 
     unique: true, 
-    required: true, 
     validate: {
       validator: (v) => /^[0-9]{10}$/.test(v), // Simple numeric validation
       message: props => `${props.value} is not a valid phone number!`
     }
   },
   passwordHash: { 
-    type: String, 
-    required: true 
+    type: String
   },
   role: { 
     type : String,
-    enum: ['admin', 'seller', 'buyer'],
-    required: true 
+    enum: ['admin', 'seller', 'buyer'] 
   },
   address: {
     houseNo: { type: String },
@@ -52,7 +48,7 @@ const userSchema = new mongoose.Schema({
     city: { type: String },
     state: { type: String }
   },
-  isDeleted: { 
+  isDeleted: {
     type: Boolean, 
     default: false, 
     required: true 
@@ -69,17 +65,5 @@ const userSchema = new mongoose.Schema({
     type : Date
   }
 }, { timestamps: true });
-
-//pre middleware
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('passwordHash')) return next(); // Skip if password not changed
-  if (!this.isModified('token')) return next();
-
-  const saltRounds = 10;
-  this.passwordHash = await bcrypt.hash(this.passwordHash, saltRounds);
-  this.token = await bcrypt.hash(this.token, saltRounds);
-
-  next();
-});
 
 module.exports = mongoose.model('User', userSchema);
