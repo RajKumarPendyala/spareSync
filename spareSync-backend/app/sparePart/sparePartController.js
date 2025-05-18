@@ -40,7 +40,7 @@ exports.addSparePart = async (req, res, next) => {
     await  createSparePart(addFields);
     
     res.status(201).json({
-      message: 'Adding spare part successfully'
+      message: 'Added spare part successfully'
     });
 
   } catch (error) {
@@ -131,7 +131,7 @@ exports.getSparePartsWithFilter = async (req, res, next) => {
 
         res.status(200).json({
             message: 'Spare parts fetched successfully',
-            SpareParts : spareParts
+            SpareParts : spareParts || []
         });
 
     }catch (error) {

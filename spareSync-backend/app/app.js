@@ -18,11 +18,11 @@ app.get('/', (req, res) => {
 
 app.use('/api/users', require('./user/userRoutes'));
 app.use('/api/users/products', require('./sparePart/sparePartRoutes'));
-// app.use('/api/users/orders', require('./app/order/orderRoutes'));
-// app.use('/api/users/reviews', require('./app/review/reviewRoutes'));
-// app.use('/api/users/financial-reports', require('./app/financialReport/financialReportRoutes'));
-// app.use('/api/users/cart/items', require('./app/cart/cartRoutes'));
-// app.use('/api/users/conversation', require('./app/conversation/conversationRoutes'));
+app.use('/api/users/orders', require('./order/orderRoutes'));
+app.use('/api/users/reviews', require('./review/reviewRoutes'));
+app.use('/api/users/financial-reports', require('./financialReport/financialReportRoutes'));
+app.use('/api/users/cart/items', require('./cart/cartRoutes'));
+app.use('/api/users/conversations', require('./conversation/conversationRoutes'));
 
 app.use(errorHandler);
 

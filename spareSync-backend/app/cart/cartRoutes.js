@@ -7,8 +7,8 @@ const authMiddleware = require('../../middleware/authMiddleware');
 
 router.post('/', authMiddleware, isBuyer, cartController.addItem);
 router.get('/', authMiddleware, isBuyer, cartController.getItems);
-router.patch('/:id', authMiddleware, isBuyer, cartController.updateItem);
-router.patch('/clear', authMiddleware, isBuyer, cartController.removeItems);
+router.patch('/', authMiddleware, isBuyer, cartController.updateItem);
+router.patch('/buyer', authMiddleware, isBuyer, cartController.removeItems);
 
 
 module.exports = router;

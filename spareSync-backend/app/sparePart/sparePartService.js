@@ -1,4 +1,6 @@
 const SparePart = require('./SparePartModel');
+const Review = require('../review/ReviewModel');
+
 
 exports.createSparePart = async ( addFields ) => {
   return await new SparePart(addFields).save();
@@ -13,5 +15,16 @@ exports.findByIdAndUpdate = async(filter, updateFields, projection = null) => {
 }
 
 exports.find = async (filter, projection = null) => {
-    return await SparePart.find( filter ).select(projection);
+    const spareParts = await SparePart.find( filter ).select(projection);
+
+    return await Promise.all(
+        spareParts.map(async (part) => {
+          const reviews = await Review.find({ sparePartId: part._id })
+            .select('-__v -updatedAt');
+          return {
+            ...part.toObject(),
+            reviews
+          };
+        })
+    );  
 }

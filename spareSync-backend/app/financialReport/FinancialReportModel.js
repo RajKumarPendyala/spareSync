@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 
 const financialReportSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true},
   totalSales: {
     type: mongoose.Types.Decimal128,
     required: true,
@@ -16,10 +15,6 @@ const financialReportSchema = new mongoose.Schema({
     type: mongoose.Types.Decimal128,
     required: true,
     min: [0, 'Net profit must be zero or positive']
-  },
-  reportDate: {
-    type: Date,
-    required: true
   },
   isDeleted: {
     type: Boolean,

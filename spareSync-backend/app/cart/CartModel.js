@@ -1,29 +1,39 @@
 const mongoose = require('mongoose');
 
 const cartSchema = new mongoose.Schema({
-  user: {
+  userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
   },
-  part: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'SparePart',
+  items: [
+    {
+      sparePartId: { type: mongoose.Schema.Types.ObjectId, ref: "SparePart", required: true},
+      quantity: {
+          type: Number,
+          required: true,
+          default: 1,
+          min: [1, 'Total quantity must be one or positive']
+      },
+      subTotal:{
+          type: mongoose.Types.Decimal128,
+          required: true,
+          min: [0, 'subTotal amount must be zero or positive']
+      },
+      subTotalDiscount:{
+        type: mongoose.Types.Decimal128,
+        min: [0, 'subTotal amount must be zero or positive']
+      }
+    }
+  ],
+  totalAmount: {
+    type: mongoose.Types.Decimal128,
+    min: [0, 'Total amount must be zero or positive'],
     required: true
   },
-  quantity: {
-    type: Number,
-    required: true,
-    min: [1, 'Quantity must be at least 1']
-  },
-  totalPrice: {
+  discountAmount: {
     type: mongoose.Types.Decimal128,
-    required: true,
-    min: [0, 'Total price must be positive']
-  },
-  isDeleted: {
-    type: Boolean,
-    default: false
+    min: [0, 'Discount must be zero or positive']
   }
 }, {timestamps: true});
 

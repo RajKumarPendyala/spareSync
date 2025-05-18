@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const { deleteUploadedFile } = require('../../utils/fileCleanup');
 const { emailOTP } = require('../../utils/emailOTP');
 const { verifyPassword } = require('../../utils/verifyPassword');
-const { findByPhoneNumber, updateOne, findByEmail, findById, findByIdAndUpdate, findByRole, deleteOne, createOtpUser, findBy, updateOneSet } = require('./userService');
+const { findByPhoneNumber, updateOne, findByEmail, findById, findByAndUpdate, findByRole, createUser, findBy, updateOneSet } = require('./userService');
 
 
 exports.register = async (req, res, next) => {
@@ -155,7 +155,7 @@ exports.editProfileById = async (req, res, next) => {
     if (state) updateFields.state = state;
     if (isDeleted !== undefined) updateFields.isDeleted = isDeleted;
 
-    const updatedUser = await findByIdAndUpdate(
+    const updatedUser = await findByAndUpdate(
       _id,
       updateFields,
       '-_id -passwordHash -isVerified -token -resetTokenExpires -createdAt -updatedAt -__v'
@@ -213,7 +213,7 @@ exports.editUserById = async(req, res, next) => {
   try{
     const { _id, isDeleted } = req.body;
 
-    const updatedUser = await findByIdAndUpdate(
+    const updatedUser = await findByAndUpdate(
       _id,
       { isDeleted },
       '-_id -passwordHash -token -resetTokenExpires -__v'
@@ -245,21 +245,30 @@ exports.sendOtpToEmail = async(req, res, next) => {
 
     const existingUser = await findByEmail({ email });
 
-    if (existingUser){
-      if (existingUser.isVerified) {
-      return res.status(400).json({ message: 'Email already exists.' });
-      }
-
-      await deleteOne({ email });
+    if (existingUser.isVerified) { 
+    return res.status(400).json({ message: 'Email already exists.' });
     }
-    
-    const otp = await emailOTP(email);
 
-    if(!otp) {
+    const token = await emailOTP(email);
+    if(!token) {
       res.status(500).json({ message: 'Failed to send OTP.' });
     }
 
-    const result = await createOtpUser(email, otp);
+    const resetTokenExpires = new Date(Date.now() + 5 * 60 * 1000);
+
+    if (!existingUser.isVerified){
+      const result = updateOneSet(
+        { email }, 
+        { 
+          token,
+          resetTokenExpires
+        } 
+      );
+
+      if(result) return res.status(200).json({ message: 'OTP sent successfully.' });
+    }
+
+    const result = await createUser(email, otp, resetTokenExpires);
     
     if(result) return res.status(200).json({ message: 'OTP sent successfully.' });
     return res.status(400).json({ message: 'Failed to sent OTP.' });
@@ -370,7 +379,7 @@ exports.verifyEmail = async(req, res, next) => {
     }
 
     const result = await updateOneSet(
-      {email},
+      { email },
       { isVerified : true }
     );
 

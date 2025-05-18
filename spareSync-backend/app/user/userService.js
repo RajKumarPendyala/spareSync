@@ -23,7 +23,7 @@ exports.updateOneSet = async(filter, updateFields) => {
     );
 }
 
-exports.findByIdAndUpdate = async(filter, updateFields, projection = null) => {
+exports.findAndUpdate = async(filter, updateFields, projection = null) => {
     return await User.findByIdAndUpdate(
         filter,
         { $set: updateFields },
@@ -31,15 +31,11 @@ exports.findByIdAndUpdate = async(filter, updateFields, projection = null) => {
     ).select(projection);
 }
 
-exports.deleteOne = async(filter) => {
-    return User.deleteOne( filter );
-}
-
-exports.createOtpUser = async (email, otp) => {
+exports.createUser = async (email, otp, resetTokenExpires) => {
   return await new User({
     email,
     token: otp,
-    resetTokenExpires: new Date(Date.now() + 5 * 60 * 1000) // 5 mins
+    resetTokenExpires
   }).save();
 };
 

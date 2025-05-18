@@ -1,8 +1,18 @@
 const mongoose = require('mongoose');
 
 const reviewSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true},
-  sparePart: { type: mongoose.Schema.Types.ObjectId, ref: 'SparePart', required: true},
+  userName: { type: 'String', required: true},
+  userImage: {
+    path: {
+      type : String
+    }        
+  },
+  sparePartId: { type: mongoose.Schema.Types.ObjectId, ref: 'SparePart', required: true},
+  images: [{
+    path: {
+      type : String
+    }
+  }],
   rating: {
     type : Number
   },

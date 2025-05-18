@@ -16,6 +16,7 @@ const sparePartSchema = new mongoose.Schema(
     },
     discount: {
       type: mongoose.Types.Decimal128,
+      default: mongoose.Types.Decimal128.fromString("0"),
       min: [0, 'discount must be zero or positive']
     },
     quantity: {

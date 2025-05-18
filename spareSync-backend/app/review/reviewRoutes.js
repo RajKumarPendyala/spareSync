@@ -5,14 +5,10 @@ const reviewController = require('./reviewController');
 const isAdmin = require('../../middleware/isAdmin');
 const isBuyer = require('../../middleware/isBuyer');
 const authMiddleware = require('../../middleware/authMiddleware');
+const upload = require('../../middleware/upload');
 
-router.post('/', authMiddleware, isBuyer, reviewController.createReview);
-router.get('/', authMiddleware, isBuyer, reviewController.getReviews);
-router.patch('/:id', authMiddleware, isBuyer, reviewController.updateReview);
 
-router.get('/product/:productId', reviewController.getProductReviews);
-
-router.patch('/admin/:id', authMiddleware, isAdmin, reviewController.updateReview);
+router.post('/', authMiddleware, isBuyer, upload.array('images', 5), reviewController.createReview);
 
 
 module.exports = router;

@@ -21,6 +21,9 @@ module.exports = router;
 
 
 //test cases
+
+//iam expecting discount amount not percentage
+
 //adding spare part
 // {
 //   "name": "Samsung Galaxy Screen Replacement",
