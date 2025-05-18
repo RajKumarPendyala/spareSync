@@ -1,4 +1,4 @@
-const { sendMessage, getConversation, deleteConversation } = require('./conversationService');
+const { sendMessage, getConversation, deleteConversation, getConversations } = require('./conversationService');
 
 exports.sendMessage = async (req, res, next) => {
   try {
@@ -61,6 +61,23 @@ exports.deleteConversation = async (req, res, next) => {
     }
 
     res.status(200).json({ message: 'Conversation deleted successfully' });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+exports.getConversations = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+
+    const conversations = await getConversations({ userId });
+
+    if(conversations){
+      return res.status(200).json(conversations);
+    }
+    res.status(404).json({ message : 'Conversations not found' });
   } catch (err) {
     next(err);
   }

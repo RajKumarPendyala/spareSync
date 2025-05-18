@@ -54,3 +54,28 @@ exports.deleteConversation = async ( userId, otherUserId ) => {
 
   return conversation;
 };
+
+
+
+exports.getConversations = async ({ userId }) => {
+  const conversations = await Conversation.find({
+    participants: userId,
+    isDeleted: false
+  })
+    .sort({ updatedAt: -1 })
+    .populate('participants', 'name email')
+    .lean();
+
+
+  const result = conversations.map(conv => {
+    const lastMessage = conv.messages[conv.messages.length - 1];
+    return {
+      _id: conv._id,
+      participants: conv.participants,
+      lastMessage,
+      updatedAt: conv.updatedAt
+    };
+  });
+
+  return result;
+};
