@@ -91,7 +91,7 @@ exports.login = async (req, res, next) => {
         user
       });
     }
-    return res.status(400).json({message: 'Login failed.'});
+    return res.status(500).json({message: 'Login failed.'});
   } catch (err) {
     next(err);
   }
@@ -389,110 +389,3 @@ exports.verifyEmail = async(req, res, next) => {
     next(error);
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// router.get('/stats', authMiddleware, isAdmin, userController.getPlatformStats);
-
-// const User = require('../models/User');
-// const Order = require('../models/Order');
-// const Product = require('../models/Product'); // If you want product stats
-
-// // GET /api/users/stats
-// const getPlatformStats = async (req, res) => {
-//   try {
-//     const totalUsers = await User.countDocuments();
-//     const buyers = await User.countDocuments({ role: 'buyer' });
-//     const sellers = await User.countDocuments({ role: 'seller' });
-//     const admins = await User.countDocuments({ role: 'admin' });
-
-//     const totalOrders = await Order.countDocuments();
-//     const completedOrders = await Order.countDocuments({ status: 'Completed' });
-//     const pendingOrders = await Order.countDocuments({ status: 'Pending' });
-//     const cancelledOrders = await Order.countDocuments({ status: 'Cancelled' });
-
-//     const totalRevenueAgg = await Order.aggregate([
-//       { $match: { status: 'Completed' } },
-//       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
-//     ]);
-//     const totalRevenue = totalRevenueAgg[0]?.total || 0;
-
-//     // Optional: Top sellers by revenue
-//     const topSellers = await Order.aggregate([
-//       { $match: { status: 'Completed' } },
-//       {
-//         $group: {
-//           _id: '$seller', // Assuming orders have a `seller` field
-//           totalSales: { $sum: '$totalAmount' }
-//         }
-//       },
-//       { $sort: { totalSales: -1 } },
-//       { $limit: 5 },
-//       {
-//         $lookup: {
-//           from: 'users',
-//           localField: '_id',
-//           foreignField: '_id',
-//           as: 'sellerInfo'
-//         }
-//       },
-//       {
-//         $unwind: '$sellerInfo'
-//       },
-//       {
-//         $project: {
-//           name: '$sellerInfo.name',
-//           totalSales: 1
-//         }
-//       }
-//     ]);
-
-//     res.status(200).json({
-//       totalUsers,
-//       buyers,
-//       sellers,
-//       admins,
-//       totalOrders,
-//       completedOrders,
-//       pendingOrders,
-//       cancelledOrders,
-//       totalRevenue,
-//       topSellers
-//     });
-
-//   } catch (error) {
-//     console.error('Error getting stats:', error);
-//     res.status(500).json({ message: 'Server error while fetching stats' });
-//   }
-// };
-
-
-// // ==================================================
-// //{
-// //     "totalUsers": 2543,
-// //     "buyers": 1890,
-// //     "sellers": 520,
-// //     "admins": 3,
-// //     "totalOrders": 9800,
-// //     "completedOrders": 8700,
-// //     "pendingOrders": 500,
-// //     "cancelledOrders": 600,
-// //     "totalRevenue": 182000.75,
-// //     "monthlyGrowthRate": "12.3%",
-// //     "topSellers": [
-// //       { "name": "TechSupply Inc.", "totalSales": 54000 },
-// //       { "name": "GadgetPro", "totalSales": 39000 }
-// //     ]
-// //   }
-  
