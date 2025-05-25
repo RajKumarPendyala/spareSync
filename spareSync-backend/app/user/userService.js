@@ -31,12 +31,12 @@ exports.findAndUpdate = async(filter, updateFields, projection = null) => {
     ).select(projection);
 }
 
-exports.createUser = async (email, otp, resetTokenExpires) => {
+exports.createUser = async (email, token, resetTokenExpires) => {
   return await new User({
     email,
-    token: otp,
+    token,
     resetTokenExpires
-  }).save();
+  }).save(); 
 };
 
 exports.findByPhoneNumber = findBy;

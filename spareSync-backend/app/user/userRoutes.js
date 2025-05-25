@@ -15,7 +15,7 @@ router.post('/forgot-password', userController.forgetPasswordOTP);
 router.patch('/reset-password', userController.updateUserPassword);
 router.patch('/change-password', authMiddleware, userController.updateUserPassword);
 router.post('/verify-email', userController.verifyEmail);
-router.post('/verify-otp', userController.sendOtpToEmail); //resend
+router.post('/otp', userController.sendOtpToEmail); //resend
 
 
 //admin

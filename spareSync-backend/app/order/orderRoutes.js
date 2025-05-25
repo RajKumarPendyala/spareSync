@@ -4,7 +4,6 @@ const router = express.Router();
 const orderController = require('./orderController');
 const isAdmin = require('../../middleware/isAdmin');
 const isBuyer = require('../../middleware/isBuyer');
-const isSeller = require('../../middleware/isSeller');
 const authMiddleware = require('../../middleware/authMiddleware');
 
 router.post('/',  authMiddleware, isBuyer, orderController.placeOrder);

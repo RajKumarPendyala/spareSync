@@ -3,7 +3,6 @@ const router = express.Router();
 
 const financialReportController = require('./financialReportController');
 const isAdmin = require('../../middleware/isAdmin');
-const isSeller = require('../../middleware/isSeller');
 const authMiddleware = require('../../middleware/authMiddleware');
 
 router.get('/', authMiddleware, isAdmin, financialReportController.getCompleteFinancialReport);

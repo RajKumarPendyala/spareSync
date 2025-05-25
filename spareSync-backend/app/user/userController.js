@@ -51,11 +51,25 @@ exports.register = async (req, res, next) => {
       removeFields
     );
 
-    if (!result) return res.status(500).json({ message: 'User could not be registered. Please try again.'});
-    return res.status(201).json({ message: 'User registered successfully.'});
+    if (result) {
+      const token = jwt.sign(
+        { userId: result._id, role: result.role },
+        JWT_SECRET,
+        { expiresIn: '10d' }
+      );
+  
+      if (token){
+        return res.status(200).json({
+          message: 'User registered successfully.',
+          token,
+          role : result.role
+        });
+      }
+    }
 
-  } catch (error) {
-    next(error);
+    return res.status(500).json({ message: 'User could not be registered. Please try again.'});
+  } catch (err) {
+    next(err);
   }
 };
 
@@ -88,7 +102,7 @@ exports.login = async (req, res, next) => {
       return res.status(200).json({
         message: 'Login successful',
         token,
-        user
+        role : user.role
       });
     }
     return res.status(500).json({message: 'Login failed.'});
@@ -244,32 +258,37 @@ exports.sendOtpToEmail = async(req, res, next) => {
     const {email} = req.body;
 
     const existingUser = await findByEmail({ email });
-
-    if (existingUser.isVerified) { 
+    
+    if (existingUser && existingUser.isVerified) { 
     return res.status(400).json({ message: 'Email already exists.' });
     }
 
     const token = await emailOTP(email);
+    
     if(!token) {
       res.status(500).json({ message: 'Failed to send OTP.' });
     }
-
-    const resetTokenExpires = new Date(Date.now() + 5 * 60 * 1000);
-
-    if (!existingUser.isVerified){
-      const result = updateOneSet(
-        { email }, 
-        { 
-          token,
-          resetTokenExpires
-        } 
-      );
-
+    
+    const resetTokenExpires = new Date(Date.now() + 2 * 60 * 1000);
+    
+    if (existingUser){
+      let result;
+      
+      if(!existingUser.isVerified){
+        result = updateOneSet(
+          { email }, 
+          { 
+            token,
+            resetTokenExpires
+          } 
+        );
+      }
+      
       if(result) return res.status(200).json({ message: 'OTP sent successfully.' });
     }
 
-    const result = await createUser(email, otp, resetTokenExpires);
-    
+    const result = await createUser(email, token, resetTokenExpires);
+
     if(result) return res.status(200).json({ message: 'OTP sent successfully.' });
     return res.status(400).json({ message: 'Failed to sent OTP.' });
   }catch (error) {
@@ -296,7 +315,7 @@ exports.forgetPasswordOTP = async(req, res, next) => {
       { email }, 
       { 
         token : otp,
-        resetTokenExpires: new Date(Date.now() + 5 * 60 * 1000)
+        resetTokenExpires: new Date(Date.now() + 2 * 60 * 1000)
       } 
     );
 
@@ -334,7 +353,7 @@ exports.updateUserPassword = async(req, res, next) => {
 
     if(otp){
       const currentDate = new Date();
-      if ( otp != user.token && user.resetTokenExpires < currentDate) {
+      if ( otp != user.token || user.resetTokenExpires < currentDate) {
         return res.status(400).json({ message: 'Invalid OTP or OTP expried.' });
       }
     }
@@ -352,7 +371,7 @@ exports.updateUserPassword = async(req, res, next) => {
       { passwordHash },
       removeFields
     );
-    if(result.modifiedCount > 0) return res.status(200).json({ message: 'User password updated successfully.' });
+    if(result.modifiedCount > 0) return res.status(200).json({ success: true, message: 'User password updated successfully.' });
     return res.status(400).json({ message: 'User password failed to update.' });
   }catch (error) {
     next(error);
@@ -374,7 +393,7 @@ exports.verifyEmail = async(req, res, next) => {
     }
 
     const currentDate = new Date();
-    if ( otp != user.token && user.resetTokenExpires < currentDate) {
+    if ( otp != user.token || user.resetTokenExpires < currentDate) {
       return res.status(400).json({ message: 'Invalid OTP or OTP expried.' });
     }
 
@@ -383,7 +402,7 @@ exports.verifyEmail = async(req, res, next) => {
       { isVerified : true }
     );
 
-    if(result.modifiedCount > 0) return res.status(201).json({message: 'Email verified successfully.'});
+    if(result.modifiedCount > 0) return res.status(201).json({success: true, message: 'Email verified successfully.'});
     return res.status(400).json({ message: 'Email verification failed.' });
   }catch (error){
     next(error);
