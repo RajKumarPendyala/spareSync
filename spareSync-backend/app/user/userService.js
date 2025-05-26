@@ -15,6 +15,17 @@ exports.updateOne = async(filter, updateFields, removeFields) =>{
     );
 }
 
+exports.findOneAndUpdate = async(filter, updateFields, removeFields) =>{
+    return await User.findOneAndUpdate(
+        filter,
+        { 
+            $set: updateFields,
+            $unset: removeFields
+        },
+        { new: true, runValidators: true }
+    );
+}
+
 exports.updateOneSet = async(filter, updateFields) => {
     return await User.updateOne(
         filter,

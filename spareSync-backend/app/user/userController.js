@@ -4,7 +4,7 @@ const bcrypt = require('bcrypt');
 const { deleteUploadedFile } = require('../../utils/fileCleanup');
 const { emailOTP } = require('../../utils/emailOTP');
 const { verifyPassword } = require('../../utils/verifyPassword');
-const { findByPhoneNumber, updateOne, findByEmail, findById, findByAndUpdate, findByRole, createUser, findBy, updateOneSet } = require('./userService');
+const { findByPhoneNumber, updateOne, findByEmail, findById, findByAndUpdate, findByRole, createUser, findBy, updateOneSet, findOneAndUpdate } = require('./userService');
 
 
 exports.register = async (req, res, next) => {
@@ -45,7 +45,7 @@ exports.register = async (req, res, next) => {
       token : ""
     }
 
-    const result = await updateOne(
+    const result = await findOneAndUpdate(
       filter,
       updateFields,
       removeFields
